@@ -293,7 +293,30 @@
 </head>
 <body>
 
-<button onclick="openJSONFile()" title="Abrir otro archivo" style="background:none;border:1px solid #E8E4DC;border-radius:8px;padding:0.35rem 0.7rem;font-size:0.8rem;cursor:pointer;color:#7F77DD;font-weight:600;font-family:inherit;white-space:nowrap;">📂 Abrir</button> <button id="save-badge" onclick="downloadSelf()" title="Guardar cambios" class="visible" style="display: flex;">💾 Guardar cambios</button>
+<!-- WELCOME SCREEN -->
+<div id="welcome-screen" style="display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:100vh;gap:1.25rem;padding:2rem;text-align:center;background:#F7F6F3;
+  font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <div style="font-size:2.5rem">🔖</div>
+  <h1 style="font-size:1.5rem;font-weight:800;color:#7F77DD;letter-spacing:-0.01em">Bookmarks</h1>
+  <p style="color:#9B9690;font-size:0.92rem;max-width:320px;line-height:1.6">
+    Abre tu archivo <strong>bookmarks.json</strong> para empezar.<br>
+    Los cambios se guardan de vuelta al mismo archivo.
+  </p>
+  <label style="background:#7F77DD;color:white;border-radius:12px;
+    padding:0.85rem 2rem;font-size:1rem;font-weight:700;cursor:pointer;font-family:inherit;
+    box-shadow:0 3px 12px rgba(127,119,221,0.3);">
+    📂 Abrir bookmarks.json
+    <input type="file" accept=".json" onchange="handleFileInput(this)" style="display:none">
+  </label>
+</div>
+
+<!-- APP -->
+<div id="app-root" style="display:none">
+
+<label title="Abrir otro archivo" style="background:none;border:1px solid #E8E4DC;border-radius:8px;padding:0.35rem 0.7rem;font-size:0.8rem;cursor:pointer;color:#7F77DD;font-weight:600;font-family:inherit;white-space:nowrap;display:inline-flex;align-items:center;">
+    📂 Abrir<input type="file" accept=".json" onchange="handleFileInput(this)" style="display:none">
+  </label> <button id="save-badge" onclick="downloadSelf()" title="Guardar cambios" class="visible" style="display: flex;">💾 Guardar cambios</button>
 <header>
   <h1>My Bookmarks</h1>
   <p id="subtitle">238 bookmarks across 12 folders</p>
@@ -1327,22 +1350,13 @@ function saveData() {
 }
 
 // ── OPEN JSON ─────────────────────────────────────────────────────────────────
-async function openJSONFile() {
-  if (window.showOpenFilePicker) {
-    try {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{ description: "JSON", accept: { "application/json": [".json"] } }]
-      });
-      _fileHandle = handle;
-      const file = await handle.getFile();
-      await readJSONFile(file);
-      return;
-    } catch(e) { if (e.name === "AbortError") return; }
-  }
-  const input = document.createElement("input");
-  input.type = "file"; input.accept = ".json";
-  input.onchange = async e => { if (e.target.files[0]) await readJSONFile(e.target.files[0]); };
-  input.click();
+async function handleFileInput(input) {
+  const file = input.files[0];
+  if (!file) return;
+  // Try to get a file handle for later overwriting (Chrome/Edge only)
+  _fileHandle = null;
+  await readJSONFile(file);
+  input.value = ""; // reset so same file can be reopened
 }
 
 async function readJSONFile(file) {
