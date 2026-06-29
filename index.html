@@ -4,107 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Temas & Acciones</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js">
-// ── DRAG & DROP (cards) ───────────────────────────────────────────────────────
-let dragSrcFi = null;
-
-function onCardDragStart(e, fi) {
-  dragSrcFi = fi;
-  e.dataTransfer.effectAllowed = "move";
-  setTimeout(() => {
-    const card = e.currentTarget;
-    if (card) card.classList.add("dragging");
-  }, 0);
-}
-function onCardDragOver(e, fi) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = "move";
-  if (fi === dragSrcFi) return;
-  document.querySelectorAll(".card").forEach(c => c.classList.remove("drag-over"));
-  e.currentTarget.classList.add("drag-over");
-}
-function onCardDragLeave(e) {
-  e.currentTarget.classList.remove("drag-over");
-}
-function onCardDrop(e, fi) {
-  e.preventDefault();
-  e.currentTarget.classList.remove("drag-over");
-  if (dragSrcFi === null || dragSrcFi === fi) return;
-  const moved = DATA.splice(dragSrcFi, 1)[0];
-  DATA.splice(fi, 0, moved);
-  dragSrcFi = null;
-  setDirty(true); renderTabs(); render();
-}
-
-// ── TOUCH DRAG (iOS) ──────────────────────────────────────────────────────────
-let touchDragFi = null;
-let touchClone = null;
-let touchOffX = 0, touchOffY = 0;
-
-function onCardTouchStart(e, fi) {
-  if (e.touches.length !== 1) return;
-  touchDragFi = fi;
-  const touch = e.touches[0];
-  const card = e.currentTarget.closest(".card");
-  const rect = card.getBoundingClientRect();
-  touchOffX = touch.clientX - rect.left;
-  touchOffY = touch.clientY - rect.top;
-
-  touchClone = card.cloneNode(true);
-  touchClone.style.cssText = `position:fixed;top:${rect.top}px;left:${rect.left}px;
-    width:${rect.width}px;opacity:0.75;pointer-events:none;z-index:999;
-    border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,0.18);`;
-  document.body.appendChild(touchClone);
-  card.classList.add("dragging");
-
-  document.addEventListener("touchmove", onCardTouchMove, { passive: false });
-  document.addEventListener("touchend", onCardTouchEnd);
-}
-
-function onCardTouchMove(e) {
-  if (touchDragFi === null) return;
-  e.preventDefault();
-  const touch = e.touches[0];
-  touchClone.style.top = (touch.clientY - touchOffY) + "px";
-  touchClone.style.left = (touch.clientX - touchOffX) + "px";
-
-  // Highlight card under finger
-  touchClone.style.display = "none";
-  const el = document.elementFromPoint(touch.clientX, touch.clientY);
-  touchClone.style.display = "";
-  document.querySelectorAll(".card").forEach(c => c.classList.remove("drag-over"));
-  const targetCard = el && el.closest(".card[data-fi]");
-  if (targetCard) {
-    const tfi = parseInt(targetCard.dataset.fi);
-    if (tfi !== touchDragFi) targetCard.classList.add("drag-over");
-  }
-}
-
-function onCardTouchEnd(e) {
-  document.removeEventListener("touchmove", onCardTouchMove);
-  document.removeEventListener("touchend", onCardTouchEnd);
-
-  if (touchClone) { touchClone.remove(); touchClone = null; }
-  document.querySelectorAll(".card").forEach(c => {
-    c.classList.remove("dragging"); c.classList.remove("drag-over");
-  });
-
-  if (touchDragFi === null) return;
-  const touch = e.changedTouches[0];
-  const el = document.elementFromPoint(touch.clientX, touch.clientY);
-  const targetCard = el && el.closest(".card[data-fi]");
-  if (targetCard) {
-    const tfi = parseInt(targetCard.dataset.fi);
-    if (tfi !== touchDragFi) {
-      const moved = DATA.splice(touchDragFi, 1)[0];
-      DATA.splice(tfi, 0, moved);
-      setDirty(true); renderTabs(); render();
-    }
-  }
-  touchDragFi = null;
-}
-
-</script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
   :root {
@@ -124,21 +23,29 @@ function onCardTouchEnd(e) {
   body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     background: var(--bg); color: var(--text); font-size: 15px; min-height: 100vh; }
 
-  /* ── WELCOME SCREEN ── */
-  .welcome {
+  /* ── LOGIN ── */
+  .login {
     display: flex; flex-direction: column; align-items: center;
     justify-content: center; min-height: 100vh;
-    gap: 1.25rem; padding: 2rem; text-align: center;
+    gap: 1rem; padding: 2rem; text-align: center;
   }
-  .welcome h1 { font-size: 1.5rem; font-weight: 800; color: var(--accent); }
-  .welcome p { color: var(--muted); font-size: 0.92rem; max-width: 320px; line-height: 1.6; }
-  .welcome-btn {
-    background: var(--accent); color: white;
-    border: none; border-radius: 12px; padding: 0.85rem 2rem;
-    font-size: 1rem; font-weight: 700; cursor: pointer; font-family: inherit;
-    box-shadow: 0 3px 12px rgba(61,107,94,0.3);
+  .login h1 { font-size: 1.4rem; font-weight: 800; color: var(--accent); }
+  .login p { color: var(--muted); font-size: 0.88rem; max-width: 300px; line-height: 1.6; }
+  .login-form { display: flex; flex-direction: column; gap: 0.65rem; width: 100%; max-width: 320px; }
+  .login-input {
+    width: 100%; padding: 0.65rem 0.85rem;
+    border: 1px solid var(--border); border-radius: 8px;
+    font-size: 0.92rem; font-family: inherit; background: white;
+    color: var(--text); outline: none; -webkit-appearance: none;
   }
-  .welcome-btn:hover { opacity: 0.88; }
+  .login-input:focus { border-color: var(--accent); }
+  .login-btn {
+    background: var(--accent); color: white; border: none;
+    border-radius: 10px; padding: 0.75rem; font-size: 0.95rem;
+    font-weight: 700; cursor: pointer; font-family: inherit;
+  }
+  .login-btn:hover { opacity: 0.88; }
+  .login-error { color: var(--danger); font-size: 0.83rem; display: none; }
 
   /* ── HEADER ── */
   header {
@@ -158,10 +65,10 @@ function onCardTouchEnd(e) {
     font-size: 0.8rem; font-weight: 700; cursor: pointer; font-family: inherit;
     white-space: nowrap;
   }
-  .hdr-btn.open-file { background: var(--accent-lt); color: var(--accent); }
-  .hdr-btn.new-topic { background: var(--accent); color: white; font-size: 1.1rem; padding: 0.38rem 0.7rem; }
   .hdr-btn.save { background: var(--accent); color: white; display: none; }
+  .hdr-btn.logout { background: var(--border); color: var(--muted); }
   .hdr-btn:hover { opacity: 0.85; }
+  .save-status { font-size: 0.78rem; color: var(--muted); white-space: nowrap; }
 
   /* ── TABS ── */
   .tabs-wrap { display: flex; gap: 0.35rem; overflow-x: auto; padding-bottom: 0; scrollbar-width: none; }
@@ -196,7 +103,7 @@ function onCardTouchEnd(e) {
     padding: 0 2px; user-select: none; touch-action: none; flex-shrink: 0; line-height: 1; }
   .drag-handle:hover { color: var(--muted); }
   .card.dragging { opacity: 0.35; }
-  .card.drag-over { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: var(--radius); }
+  .card.drag-over { outline: 2px solid var(--accent); outline-offset: 2px; }
   .icon-btn { background: none; border: none; cursor: pointer; padding: 4px 6px;
     border-radius: 5px; color: var(--muted); font-size: 14px; transition: background 0.12s, color 0.12s; }
   .icon-btn:hover { background: var(--bg); color: var(--text); }
@@ -272,12 +179,17 @@ function onCardTouchEnd(e) {
   .confirm-box p { font-size: 0.92rem; line-height: 1.5; margin-bottom: 1.1rem; color: var(--text); }
   .confirm-row { display: flex; gap: 0.5rem; justify-content: flex-end; }
 
-  /* ── EMPTY ── */
+  /* ── LOADING ── */
+  .loading { display: flex; flex-direction: column; align-items: center;
+    justify-content: center; min-height: 100vh; gap: 1rem; color: var(--muted); font-size: 0.92rem; }
+  .spinner { width: 28px; height: 28px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── MISC ── */
   .empty-topic { padding: 0.75rem 1rem; font-size: 0.83rem; color: var(--muted); font-style: italic; }
   .no-results { text-align: center; color: var(--muted); padding: 3rem 1rem; font-size: 0.95rem; display: none; }
   mark.highlight { background: #fff3b0; border-radius: 2px; }
-
-  /* ── DIRTY INDICATOR ── */
   .dirty-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%;
     background: #e67e22; margin-left: 5px; vertical-align: middle; display: none; }
 
@@ -288,29 +200,49 @@ function onCardTouchEnd(e) {
     .tab { padding: 0.55rem 0.9rem; font-size: 0.85rem; }
     .icon-btn { padding: 6px 8px; font-size: 15px; }
     .btn { padding: 0.5rem 1rem; font-size: 0.9rem; }
-    .header-search { max-width: 140px; }
+    .header-search { max-width: 130px; }
   }
 </style>
 </head>
 <body>
 
-<!-- WELCOME -->
-<div class="welcome" id="welcome">
+<!-- LOGIN -->
+<div id="screen-login" class="login">
   <div style="font-size:2.5rem">🗂</div>
   <h1>Temas & Acciones</h1>
-  <p>Abre tu archivo <strong>todos.xlsx</strong> para empezar. Los cambios se guardan de vuelta al mismo Excel.</p>
-  <button class="welcome-btn" onclick="openFile()">📂 Abrir Excel</button>
+  <p>Introduce tu GitHub Personal Access Token para cargar los datos.</p>
+  <div class="login-form">
+    <input class="login-input" type="password" id="inp-token" placeholder="ghp_xxxxxxxxxxxx"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <input class="login-input" type="text" id="inp-repo"
+      value="martinlla/tareas-data"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <input class="login-input" type="text" id="inp-file"
+      value="tareas.json"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
 </div>
 
-<!-- APP (hidden until file loaded) -->
-<div id="app" style="display:none">
+<!-- LOADING -->
+<div id="screen-loading" class="loading" style="display:none">
+  <div class="spinner"></div>
+  <span id="loading-msg">Cargando…</span>
+</div>
+
+<!-- APP -->
+<div id="screen-app" style="display:none">
   <header>
     <div class="header-top">
       <div class="app-title">🗂 Temas & Acciones <span class="dirty-dot" id="dirty-dot"></span></div>
       <input class="header-search" type="search" placeholder="Buscar…" oninput="onSearch(this.value)">
-      <button class="hdr-btn open-file" onclick="openFile()">📂 Abrir</button>
-      <button class="hdr-btn new-topic" id="new-topic-btn" onclick="triggerNewTopic()" style="display:none" title="Nuevo tema">＋</button>
-      <button class="hdr-btn save" id="save-btn" onclick="saveFile()">💾 Guardar</button>
+      <span class="save-status" id="save-status"></span>
+      <button class="hdr-btn save" id="save-btn" onclick="saveData()">💾 Guardar</button>
+      <button class="hdr-btn logout" onclick="doLogout()">✕</button>
     </div>
     <div class="tabs-wrap" id="tabs"></div>
   </header>
@@ -332,125 +264,143 @@ function onCardTouchEnd(e) {
 </div>
 
 <script>
+// ── CONFIG ────────────────────────────────────────────────────────────────────
+let GH_TOKEN = "";
+let GH_REPO  = "";   // "usuario/repo"
+let GH_FILE  = "";   // "tareas.json"
+let GH_SHA   = "";   // necesario para PUT
+
 // ── STATE ─────────────────────────────────────────────────────────────────────
-let DATA = [];          // [{topic, tasks:[{text,done}]}]
+let DATA = [];
 let activeFolders = new Set();
 let searchQuery = "";
 const VISIBLE_LIMIT = 10;
 let expandedTopics = new Set();
 let dirty = false;
-let _fileHandle = null;  // File System Access API handle (Chrome/Edge)
 
-// ── EXCEL PARSE ───────────────────────────────────────────────────────────────
-function parseWorkbook(wb) {
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
+// ── SCREENS ───────────────────────────────────────────────────────────────────
+function show(id) {
+  ["screen-login","screen-loading","screen-app"].forEach(s =>
+    document.getElementById(s).style.display = s === id ? (id === "screen-app" ? "block" : "flex") : "none"
+  );
+}
 
-  // Row 0 = topic names, row 1 = counts (skip), rows 2+ = tasks
-  const topics = rows[0] || [];
-  const taskRows = rows.slice(2);
+// ── LOGIN ─────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const token = document.getElementById("inp-token").value.trim();
+  const repo  = document.getElementById("inp-repo").value.trim();
+  const file  = document.getElementById("inp-file").value.trim() || "tareas.json";
+  const err   = document.getElementById("login-error");
+  err.style.display = "none";
 
-  DATA = [];
-  for (let ci = 0; ci < topics.length; ci++) {
-    const topic = String(topics[ci] || "").trim();
-    if (!topic) continue;
-    const tasks = [];
-    for (const row of taskRows) {
-      const cell = String(row[ci] || "").trim();
-      if (cell) {
-        const done = cell.startsWith("✓ ");
-        tasks.push({ text: done ? cell.slice(2) : cell, done });
-      }
+  if (!token || !repo) {
+    err.textContent = "Token y repo son obligatorios.";
+    err.style.display = "block"; return;
+  }
+
+  GH_TOKEN = token; GH_REPO = repo; GH_FILE = file;
+  show("screen-loading");
+  document.getElementById("loading-msg").textContent = "Cargando datos…";
+
+  const ok = await loadData();
+  if (!ok) {
+    GH_TOKEN = ""; show("screen-login");
+    err.style.display = "block";
+  }
+}
+
+function doLogout() {
+  GH_TOKEN = ""; GH_REPO = ""; GH_FILE = ""; GH_SHA = "";
+  DATA = []; dirty = false;
+  document.getElementById("inp-token").value = "";
+  show("screen-login");
+}
+
+// ── GITHUB API ────────────────────────────────────────────────────────────────
+async function ghFetch(path, opts = {}) {
+  const res = await fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_FILE}${path}`, {
+    ...opts,
+    headers: {
+      "Authorization": `Bearer ${GH_TOKEN}`,
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(opts.headers || {})
     }
-    DATA.push({ topic, tasks });
+  });
+  return res;
+}
+
+async function loadData() {
+  try {
+    const res = await ghFetch("");
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const err = document.getElementById("login-error");
+      if (res.status === 401) err.textContent = "Token inválido o sin permisos.";
+      else if (res.status === 404) err.textContent = `Archivo no encontrado: ${GH_REPO}/${GH_FILE}`;
+      else err.textContent = `Error ${res.status}: ${body.message || "desconocido"}`;
+      return false;
+    }
+    const json = await res.json();
+    GH_SHA = json.sha;
+    const binary = atob(json.content.replace(/\n/g, ""));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const text = new TextDecoder("utf-8").decode(bytes);
+    DATA = JSON.parse(text);
+    setDirty(false);
+    renderTabs(); render();
+    show("screen-app");
+    return true;
+  } catch(e) {
+    document.getElementById("login-error").textContent = "Error de red: " + e.message;
+    return false;
   }
 }
 
-// ── EXCEL WRITE ───────────────────────────────────────────────────────────────
-function buildWorkbook() {
-  // Reconstruct the columnar layout: row0=topics, row1=counts, rows2+=tasks
-  const maxTasks = Math.max(...DATA.map(f => f.tasks.length), 0);
-  const aoa = [];
+async function saveData() {
+  if (!dirty) return;
+  const btn = document.getElementById("save-btn");
+  btn.disabled = true;
+  btn.textContent = "⏳ Guardando…";
+  document.getElementById("save-status").textContent = "";
 
-  // Row 0: topic names
-  aoa.push(DATA.map(f => f.topic));
-  // Row 1: pending count per topic
-  aoa.push(DATA.map(f => f.tasks.filter(t => !t.done).length));
-  // Task rows
-  for (let ti = 0; ti < maxTasks; ti++) {
-    aoa.push(DATA.map(f => f.tasks[ti] ? (f.tasks[ti].done ? "✓ " : "") + f.tasks[ti].text : ""));
-  }
+  try {
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(DATA, null, 2))));
+    const res = await ghFetch("", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: "update tareas",
+        content,
+        sha: GH_SHA
+      })
+    });
 
-  const wb = XLSX.utils.book_new();
-  const ws = XLSX.utils.aoa_to_sheet(aoa);
-
-  // Column widths
-  ws['!cols'] = DATA.map(() => ({ wch: 28 }));
-
-  XLSX.utils.book_append_sheet(wb, ws, "Sheet1");
-  return wb;
-}
-
-// ── FILE OPEN ─────────────────────────────────────────────────────────────────
-async function openFile() {
-  if (window.showOpenFilePicker) {
-    try {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{ description: "Excel", accept: { "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"] } }]
-      });
-      _fileHandle = handle;
-      const file = await handle.getFile();
-      await readFile(file);
-      return;
-    } catch(e) { if (e.name === "AbortError") return; }
-  }
-  // Fallback: <input type=file>
-  const input = document.createElement("input");
-  input.type = "file"; input.accept = ".xlsx";
-  input.onchange = async e => { if (e.target.files[0]) await readFile(e.target.files[0]); };
-  input.click();
-}
-
-async function readFile(file) {
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: "array" });
-  parseWorkbook(wb);
-  dirty = false;
-  setDirty(false);
-  document.getElementById("welcome").style.display = "none";
-  document.getElementById("app").style.display = "block";
-  document.getElementById("new-topic-btn").style.display = "inline-block";
-  renderTabs(); render();
-}
-
-// ── FILE SAVE ─────────────────────────────────────────────────────────────────
-async function saveFile() {
-  const wb = buildWorkbook();
-  const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-  const blob = new Blob([wbout], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-
-  if (_fileHandle) {
-    try {
-      const writable = await _fileHandle.createWritable();
-      await writable.write(blob);
-      await writable.close();
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      document.getElementById("save-status").textContent = "❌ Error al guardar";
+      console.error(body);
+    } else {
+      const body = await res.json();
+      GH_SHA = body.content.sha;
       setDirty(false);
-      return;
-    } catch(e) { /* fall through to download */ }
+      document.getElementById("save-status").textContent = "✓ Guardado";
+      setTimeout(() => document.getElementById("save-status").textContent = "", 3000);
+    }
+  } catch(e) {
+    document.getElementById("save-status").textContent = "❌ Error de red";
   }
-  // iOS / fallback: download
-  const a = document.createElement("a");
-  a.href = URL.createObjectURL(blob);
-  a.download = "todos.xlsx";
-  a.click();
-  setDirty(false);
+
+  btn.disabled = false;
+  btn.textContent = "💾 Guardar";
 }
 
 // ── DIRTY STATE ───────────────────────────────────────────────────────────────
 function setDirty(val) {
   dirty = val;
   document.getElementById("dirty-dot").style.display = val ? "inline-block" : "none";
-  document.getElementById("save-btn").style.display = val ? "inline-block" : "none";
+  document.getElementById("save-btn").style.display   = val ? "inline-block" : "none";
 }
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
@@ -467,10 +417,10 @@ function highlightText(text, q) {
     esc(text.slice(idx+q.length));
 }
 
-// ── SEARCH ───────────────────────────────────────────────────────────────────
+// ── SEARCH ────────────────────────────────────────────────────────────────────
 function onSearch(val) { searchQuery = val.trim().toLowerCase(); render(); }
 
-// ── TABS ─────────────────────────────────────────────────────────────────────
+// ── TABS ──────────────────────────────────────────────────────────────────────
 function renderTabs() {
   const tabs = document.getElementById("tabs");
   const total = DATA.reduce((s,f) => s + f.tasks.filter(t=>!t.done).length, 0);
@@ -493,7 +443,7 @@ function toggleExpand(fi) {
   render();
 }
 
-// ── RENDER ───────────────────────────────────────────────────────────────────
+// ── RENDER ────────────────────────────────────────────────────────────────────
 function render() {
   const grid = document.getElementById("grid");
   const q = searchQuery;
@@ -578,7 +528,7 @@ function render() {
   if (q) document.getElementById("no-q").textContent = q;
 }
 
-// ── ACTIONS ──────────────────────────────────────────────────────────────────
+// ── ACTIONS ───────────────────────────────────────────────────────────────────
 function toggleAddForm(fi) {
   const form = document.getElementById(`form-${fi}`);
   if (form.classList.toggle("open")) document.getElementById(`ta-${fi}`).focus();
@@ -610,13 +560,6 @@ function deleteTopic(fi) {
 }
 
 // ── NEW TOPIC ─────────────────────────────────────────────────────────────────
-function triggerNewTopic() {
-  // Make sure no folder filter hides the new-topic card, then open the form
-  const form = document.getElementById("new-topic-form");
-  if (!form) return;
-  if (!form.classList.contains("open")) toggleNewTopicForm();
-  form.closest(".card").scrollIntoView({ behavior: "smooth", block: "center" });
-}
 function toggleNewTopicForm() {
   const form = document.getElementById("new-topic-form");
   if (form) {
@@ -656,28 +599,20 @@ function closeConfirm() { document.getElementById("confirm-overlay").classList.r
 
 // ── DRAG & DROP (cards) ───────────────────────────────────────────────────────
 let dragSrcFi = null;
-
 function onCardDragStart(e, fi) {
   dragSrcFi = fi;
   e.dataTransfer.effectAllowed = "move";
-  setTimeout(() => {
-    const card = e.currentTarget;
-    if (card) card.classList.add("dragging");
-  }, 0);
+  setTimeout(() => { const c = e.currentTarget; if (c) c.classList.add("dragging"); }, 0);
 }
 function onCardDragOver(e, fi) {
-  e.preventDefault();
-  e.dataTransfer.dropEffect = "move";
+  e.preventDefault(); e.dataTransfer.dropEffect = "move";
   if (fi === dragSrcFi) return;
   document.querySelectorAll(".card").forEach(c => c.classList.remove("drag-over"));
   e.currentTarget.classList.add("drag-over");
 }
-function onCardDragLeave(e) {
-  e.currentTarget.classList.remove("drag-over");
-}
+function onCardDragLeave(e) { e.currentTarget.classList.remove("drag-over"); }
 function onCardDrop(e, fi) {
-  e.preventDefault();
-  e.currentTarget.classList.remove("drag-over");
+  e.preventDefault(); e.currentTarget.classList.remove("drag-over");
   if (dragSrcFi === null || dragSrcFi === fi) return;
   const moved = DATA.splice(dragSrcFi, 1)[0];
   DATA.splice(fi, 0, moved);
@@ -686,10 +621,7 @@ function onCardDrop(e, fi) {
 }
 
 // ── TOUCH DRAG (iOS) ──────────────────────────────────────────────────────────
-let touchDragFi = null;
-let touchClone = null;
-let touchOffX = 0, touchOffY = 0;
-
+let touchDragFi = null, touchClone = null, touchOffX = 0, touchOffY = 0;
 function onCardTouchStart(e, fi) {
   if (e.touches.length !== 1) return;
   touchDragFi = fi;
@@ -698,26 +630,21 @@ function onCardTouchStart(e, fi) {
   const rect = card.getBoundingClientRect();
   touchOffX = touch.clientX - rect.left;
   touchOffY = touch.clientY - rect.top;
-
   touchClone = card.cloneNode(true);
   touchClone.style.cssText = `position:fixed;top:${rect.top}px;left:${rect.left}px;
     width:${rect.width}px;opacity:0.75;pointer-events:none;z-index:999;
     border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,0.18);`;
   document.body.appendChild(touchClone);
   card.classList.add("dragging");
-
   document.addEventListener("touchmove", onCardTouchMove, { passive: false });
   document.addEventListener("touchend", onCardTouchEnd);
 }
-
 function onCardTouchMove(e) {
   if (touchDragFi === null) return;
   e.preventDefault();
   const touch = e.touches[0];
-  touchClone.style.top = (touch.clientY - touchOffY) + "px";
+  touchClone.style.top  = (touch.clientY - touchOffY) + "px";
   touchClone.style.left = (touch.clientX - touchOffX) + "px";
-
-  // Highlight card under finger
   touchClone.style.display = "none";
   const el = document.elementFromPoint(touch.clientX, touch.clientY);
   touchClone.style.display = "";
@@ -728,16 +655,13 @@ function onCardTouchMove(e) {
     if (tfi !== touchDragFi) targetCard.classList.add("drag-over");
   }
 }
-
 function onCardTouchEnd(e) {
   document.removeEventListener("touchmove", onCardTouchMove);
   document.removeEventListener("touchend", onCardTouchEnd);
-
   if (touchClone) { touchClone.remove(); touchClone = null; }
   document.querySelectorAll(".card").forEach(c => {
     c.classList.remove("dragging"); c.classList.remove("drag-over");
   });
-
   if (touchDragFi === null) return;
   const touch = e.changedTouches[0];
   const el = document.elementFromPoint(touch.clientX, touch.clientY);
@@ -752,7 +676,6 @@ function onCardTouchEnd(e) {
   }
   touchDragFi = null;
 }
-
 </script>
 </body>
 </html>
