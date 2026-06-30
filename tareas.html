@@ -111,6 +111,7 @@
 
   /* ── TASK LIST ── */
   .task-list { padding: 0.35rem 0; }
+  .task-list:empty, .task-list:has(.empty-topic) { min-height: 44px; }
   .task-item { display: flex; align-items: flex-start; gap: 0.6rem;
     padding: 0.55rem 1rem; border-bottom: 1px solid #F2EFE9; transition: background 0.1s; }
   .task-item:last-child { border-bottom: none; }
@@ -125,11 +126,18 @@
   .task-cb:checked { background: var(--accent); border-color: var(--accent); }
   .task-cb:checked::after { content: "✓"; color: white; font-size: 10px;
     font-weight: 700; position: absolute; top: -1px; left: 1px; }
-  .task-text { flex: 1; font-size: 0.87rem; line-height: 1.45; color: var(--text); word-break: break-word; }
+  .task-text { flex: 1; font-size: 0.87rem; line-height: 1.45; color: var(--text); word-break: break-word; cursor: text; }
   .task-item.done .task-text { text-decoration: line-through; color: var(--done-text); }
   .task-del { background: none; border: none; cursor: pointer; color: transparent;
     font-size: 12px; padding: 0 2px; flex-shrink: 0; transition: color 0.12s; }
   .task-item:hover .task-del { color: var(--muted); }
+  .task-drag-handle { color: var(--border); cursor: grab; font-size: 0.85rem;
+    padding: 2px 1px; user-select: none; touch-action: none; flex-shrink: 0; line-height: 1.6; margin-top: 1px; }
+  .task-drag-handle:hover { color: var(--muted); }
+  .task-item.task-dragging { opacity: 0.35; }
+  .task-item.task-drop-before { box-shadow: inset 0 2px 0 0 var(--accent); }
+  .task-item.task-drop-after { box-shadow: inset 0 -2px 0 0 var(--accent); }
+  .task-list.task-list-drag-over { background: var(--accent-lt); }
   .task-del:hover { color: var(--danger) !important; }
 
   /* ── ADD TASK ── */
@@ -238,10 +246,9 @@
 <div id="screen-app" style="display:none">
   <header>
     <div class="header-top">
-      <div class="app-title">🗂 Temas & Acciones <span class="dirty-dot" id="dirty-dot"></span></div>
+      <div class="app-title">🗂 Temas & Acciones</div>
       <input class="header-search" type="search" placeholder="Buscar…" oninput="onSearch(this.value)">
       <span class="save-status" id="save-status"></span>
-      <button class="hdr-btn save" id="save-btn" onclick="saveData()">💾 Guardar</button>
       <button class="hdr-btn logout" onclick="doLogout()">✕</button>
     </div>
     <div class="tabs-wrap" id="tabs"></div>
@@ -272,6 +279,9 @@ let GH_SHA   = "";   // necesario para PUT
 
 // ── STATE ─────────────────────────────────────────────────────────────────────
 let DATA = [];
+window.addEventListener("beforeunload", e => {
+  if (dirty) { e.preventDefault(); e.returnValue = ""; }
+});
 let activeFolders = new Set();
 let searchQuery = "";
 const VISIBLE_LIMIT = 10;
@@ -358,12 +368,10 @@ async function loadData() {
   }
 }
 
+let saveTimer = null;
 async function saveData() {
   if (!dirty) return;
-  const btn = document.getElementById("save-btn");
-  btn.disabled = true;
-  btn.textContent = "⏳ Guardando…";
-  document.getElementById("save-status").textContent = "";
+  document.getElementById("save-status").textContent = "⏳ Guardando…";
 
   try {
     const content = btoa(unescape(encodeURIComponent(JSON.stringify(DATA, null, 2))));
@@ -386,22 +394,23 @@ async function saveData() {
       GH_SHA = body.content.sha;
       setDirty(false);
       document.getElementById("save-status").textContent = "✓ Guardado";
-      setTimeout(() => document.getElementById("save-status").textContent = "", 3000);
+      setTimeout(() => document.getElementById("save-status").textContent = "", 2000);
     }
   } catch(e) {
     document.getElementById("save-status").textContent = "❌ Error de red";
   }
-
-  btn.disabled = false;
-  btn.textContent = "💾 Guardar";
 }
 
-// ── DIRTY STATE ───────────────────────────────────────────────────────────────
+// ── DIRTY STATE / AUTO-SAVE ─────────────────────────────────────────────────────
 function setDirty(val) {
   dirty = val;
-  document.getElementById("dirty-dot").style.display = val ? "inline-block" : "none";
-  document.getElementById("save-btn").style.display   = val ? "inline-block" : "none";
+  if (val) {
+    document.getElementById("save-status").textContent = "✏️ Cambios pendientes…";
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(saveData, 800);
+  }
 }
+
 
 // ── UTILS ─────────────────────────────────────────────────────────────────────
 function esc(s) {
@@ -473,7 +482,9 @@ function render() {
           <button class="icon-btn danger" title="Eliminar tema" onclick="deleteTopic(${fi})">🗑</button>
         </div>
       </div>
-      <div class="task-list">`;
+      <div class="task-list" id="list-${fi}"
+        ondragover="onTaskListDragOver(event,${fi})"
+        ondrop="onTaskListDrop(event,${fi})">`;
 
     let shown = 0;
     for (let ti = 0; ti < folder.tasks.length; ti++) {
@@ -481,10 +492,19 @@ function render() {
       if (q && !task.text.toLowerCase().includes(q)) continue;
       if (!q && !isExpanded && shown >= VISIBLE_LIMIT) continue;
       shown++;
-      html += `<div class="task-item ${task.done?"done":""}">
+      html += `<div class="task-item ${task.done?"done":""}" data-fi="${fi}" data-ti="${ti}"
+        draggable="true"
+        ondragstart="onTaskDragStart(event,${fi},${ti})"
+        ondragover="onTaskItemDragOver(event,${fi},${ti})"
+        ondragleave="onTaskItemDragLeave(event)"
+        ondrop="onTaskItemDrop(event,${fi},${ti})"
+        ondragend="onTaskDragEnd()">
+        <span class="task-drag-handle"
+          ontouchstart="onTaskTouchStart(event,${fi},${ti})"
+          title="Arrastrar">⠿</span>
         <input type="checkbox" class="task-cb" ${task.done?"checked":""}
           onchange="toggleTask(${fi},${ti},this.checked)">
-        <span class="task-text">${highlightText(task.text, searchQuery)}</span>
+        <span class="task-text" id="text-${fi}-${ti}" onclick="editTask(${fi},${ti})" title="Clic para editar">${highlightText(task.text, searchQuery)}</span>
         <button class="task-del" title="Eliminar" onclick="deleteTask(${fi},${ti})">✕</button>
       </div>`;
     }
@@ -545,6 +565,28 @@ function toggleTask(fi, ti, checked) {
   DATA[fi].tasks[ti].done = checked;
   setDirty(true); renderTabs(); render();
 }
+function editTask(fi, ti) {
+  const span = document.getElementById(`text-${fi}-${ti}`);
+  if (!span || span.querySelector("input")) return;
+  const current = DATA[fi].tasks[ti].text;
+  span.innerHTML = `<input type="text" class="task-edit-input" value="${esc(current)}"
+    style="width:100%;border:1px solid var(--accent);border-radius:5px;padding:2px 6px;
+    font-size:0.87rem;font-family:inherit;background:white;color:var(--text);outline:none;">`;
+  const input = span.querySelector("input");
+  input.focus();
+  input.select();
+  const commit = () => {
+    const val = input.value.trim();
+    if (val && val !== current) { DATA[fi].tasks[ti].text = val; setDirty(true); }
+    renderTabs(); render();
+  };
+  input.addEventListener("blur", commit);
+  input.addEventListener("keydown", e => {
+    if (e.key === "Enter") { e.preventDefault(); input.blur(); }
+    if (e.key === "Escape") { e.preventDefault(); render(); }
+  });
+  input.addEventListener("click", e => e.stopPropagation());
+}
 function deleteTask(fi, ti) {
   showConfirm(`¿Eliminar "${DATA[fi].tasks[ti].text}"?`, () => {
     DATA[fi].tasks.splice(ti, 1);
@@ -600,6 +642,7 @@ function closeConfirm() { document.getElementById("confirm-overlay").classList.r
 // ── DRAG & DROP (cards) ───────────────────────────────────────────────────────
 let dragSrcFi = null;
 function onCardDragStart(e, fi) {
+  if (e.target.closest(".task-item")) { e.preventDefault(); return; }
   dragSrcFi = fi;
   e.dataTransfer.effectAllowed = "move";
   setTimeout(() => { const c = e.currentTarget; if (c) c.classList.add("dragging"); }, 0);
@@ -675,6 +718,130 @@ function onCardTouchEnd(e) {
     }
   }
   touchDragFi = null;
+}
+
+// ── DRAG & DROP (tasks) ────────────────────────────────────────────────────────
+let taskDragFi = null, taskDragTi = null;
+
+function onTaskDragStart(e, fi, ti) {
+  e.stopPropagation();
+  taskDragFi = fi; taskDragTi = ti;
+  e.dataTransfer.effectAllowed = "move";
+  setTimeout(() => { e.currentTarget.classList.add("task-dragging"); }, 0);
+}
+function onTaskItemDragOver(e, fi, ti) {
+  e.preventDefault(); e.stopPropagation();
+  e.dataTransfer.dropEffect = "move";
+  document.querySelectorAll(".task-drop-before,.task-drop-after").forEach(el =>
+    el.classList.remove("task-drop-before","task-drop-after"));
+  const rect = e.currentTarget.getBoundingClientRect();
+  const before = (e.clientY - rect.top) < rect.height / 2;
+  e.currentTarget.classList.add(before ? "task-drop-before" : "task-drop-after");
+}
+function onTaskItemDragLeave(e) {
+  e.currentTarget.classList.remove("task-drop-before","task-drop-after");
+}
+function onTaskItemDrop(e, fi, ti) {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove("task-drop-before","task-drop-after");
+  if (taskDragFi === null) return;
+  const rect = e.currentTarget.getBoundingClientRect();
+  const before = (e.clientY - rect.top) < rect.height / 2;
+  moveTask(taskDragFi, taskDragTi, fi, before ? ti : ti + 1);
+  taskDragFi = null; taskDragTi = null;
+}
+function onTaskListDragOver(e, fi) {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.add("task-list-drag-over");
+}
+function onTaskListDrop(e, fi) {
+  e.preventDefault(); e.stopPropagation();
+  e.currentTarget.classList.remove("task-list-drag-over");
+  if (taskDragFi === null) return;
+  // Dropped on empty area of the list (not on a specific task-item) → append to end
+  if (!e.target.closest(".task-item")) {
+    moveTask(taskDragFi, taskDragTi, fi, DATA[fi].tasks.length);
+    taskDragFi = null; taskDragTi = null;
+  }
+}
+function onTaskDragEnd() {
+  document.querySelectorAll(".task-dragging,.task-drop-before,.task-drop-after,.task-list-drag-over").forEach(el =>
+    el.classList.remove("task-dragging","task-drop-before","task-drop-after","task-list-drag-over"));
+  taskDragFi = null; taskDragTi = null;
+}
+function moveTask(srcFi, srcTi, destFi, destTi) {
+  const task = DATA[srcFi].tasks.splice(srcTi, 1)[0];
+  if (srcFi === destFi && srcTi < destTi) destTi--;
+  destTi = Math.max(0, Math.min(destTi, DATA[destFi].tasks.length));
+  DATA[destFi].tasks.splice(destTi, 0, task);
+  setDirty(true); renderTabs(); render();
+}
+
+// ── TOUCH DRAG (tasks, iOS) ─────────────────────────────────────────────────────
+let taskTouchFi = null, taskTouchTi = null, taskTouchClone = null, taskTouchOffX = 0, taskTouchOffY = 0;
+function onTaskTouchStart(e, fi, ti) {
+  e.stopPropagation();
+  if (e.touches.length !== 1) return;
+  taskTouchFi = fi; taskTouchTi = ti;
+  const touch = e.touches[0];
+  const item = e.currentTarget.closest(".task-item");
+  const rect = item.getBoundingClientRect();
+  taskTouchOffX = touch.clientX - rect.left;
+  taskTouchOffY = touch.clientY - rect.top;
+  taskTouchClone = item.cloneNode(true);
+  taskTouchClone.style.cssText = `position:fixed;top:${rect.top}px;left:${rect.left}px;
+    width:${rect.width}px;opacity:0.85;pointer-events:none;z-index:999;
+    background:var(--surface);box-shadow:0 6px 20px rgba(0,0,0,0.18);border-radius:6px;`;
+  document.body.appendChild(taskTouchClone);
+  item.classList.add("task-dragging");
+  document.addEventListener("touchmove", onTaskTouchMove, { passive: false });
+  document.addEventListener("touchend", onTaskTouchEnd);
+}
+function onTaskTouchMove(e) {
+  if (taskTouchFi === null) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  taskTouchClone.style.top  = (touch.clientY - taskTouchOffY) + "px";
+  taskTouchClone.style.left = (touch.clientX - taskTouchOffX) + "px";
+  taskTouchClone.style.display = "none";
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  taskTouchClone.style.display = "";
+  document.querySelectorAll(".task-drop-before,.task-drop-after,.task-list-drag-over").forEach(c =>
+    c.classList.remove("task-drop-before","task-drop-after","task-list-drag-over"));
+  const targetItem = el && el.closest(".task-item[data-fi]");
+  if (targetItem) {
+    const rect = targetItem.getBoundingClientRect();
+    const before = (touch.clientY - rect.top) < rect.height / 2;
+    targetItem.classList.add(before ? "task-drop-before" : "task-drop-after");
+  } else {
+    const targetList = el && el.closest("[id^='list-']");
+    if (targetList) targetList.classList.add("task-list-drag-over");
+  }
+}
+function onTaskTouchEnd(e) {
+  document.removeEventListener("touchmove", onTaskTouchMove);
+  document.removeEventListener("touchend", onTaskTouchEnd);
+  if (taskTouchClone) { taskTouchClone.remove(); taskTouchClone = null; }
+  document.querySelectorAll(".task-dragging,.task-drop-before,.task-drop-after,.task-list-drag-over").forEach(c =>
+    c.classList.remove("task-dragging","task-drop-before","task-drop-after","task-list-drag-over"));
+  if (taskTouchFi === null) return;
+  const touch = e.changedTouches[0];
+  const el = document.elementFromPoint(touch.clientX, touch.clientY);
+  const targetItem = el && el.closest(".task-item[data-fi]");
+  if (targetItem) {
+    const tfi = parseInt(targetItem.dataset.fi);
+    const tti = parseInt(targetItem.dataset.ti);
+    const rect = targetItem.getBoundingClientRect();
+    const before = (touch.clientY - rect.top) < rect.height / 2;
+    moveTask(taskTouchFi, taskTouchTi, tfi, before ? tti : tti + 1);
+  } else {
+    const targetList = el && el.closest("[id^='list-']");
+    if (targetList) {
+      const tfi = parseInt(targetList.id.replace("list-",""));
+      moveTask(taskTouchFi, taskTouchTi, tfi, DATA[tfi].tasks.length);
+    }
+  }
+  taskTouchFi = null; taskTouchTi = null;
 }
 </script>
 </body>
