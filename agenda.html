@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agenda</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg:      #F2F2F7;
+  --surface: #FFFFFF;
+  --border:  #E5E5EA;
+  --text:    #1C1C1E;
+  --text2:   #3A3A3C;
+  --muted:   #8E8E93;
+  --accent:  #007AFF;
+  --danger:  #FF3B30;
+  --green:   #34C759;
+  --orange:  #FF9500;
+  --radius:  13px;
+  --font:    -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", sans-serif;
+}
+body {
+  font-family: var(--font); background: var(--bg); color: var(--text);
+  min-height: 100vh; -webkit-font-smoothing: antialiased;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+/* ── LOGIN ── */
+.login {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 100vh;
+  gap: 1.1rem; padding: 2rem; text-align: center;
+}
+.login-icon { font-size: 3rem; }
+.login h1 { font-size: 1.4rem; font-weight: 700; color: var(--text); letter-spacing: -0.02em; }
+.login p { color: var(--muted); font-size: 0.88rem; max-width: 280px; line-height: 1.6; }
+.login-form { display: flex; flex-direction: column; gap: 0.6rem; width: 100%; max-width: 300px; }
+.login-input {
+  width: 100%; padding: 0.7rem 0.9rem;
+  border: 1px solid var(--border); border-radius: 10px;
+  font-size: 0.95rem; font-family: var(--font); background: white;
+  color: var(--text); outline: none; -webkit-appearance: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.login-input:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(0,122,255,0.1); }
+.login-btn {
+  background: var(--accent); color: white; border: none;
+  border-radius: 10px; padding: 0.75rem; font-size: 0.95rem;
+  font-weight: 600; cursor: pointer; font-family: var(--font);
+}
+.login-btn:hover { opacity: 0.88; }
+.login-error { color: var(--danger); font-size: 0.83rem; display: none; }
+
+/* ── LOADING ── */
+.loading {
+  display: flex; flex-direction: column; align-items: center;
+  justify-content: center; min-height: 100vh; gap: 1rem;
+  color: var(--muted); font-size: 0.92rem;
+}
+.spinner {
+  width: 28px; height: 28px; border: 2.5px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+}
+
+/* ── HEADER ── */
+header {
+  background: rgba(242,242,247,0.92);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0.85rem 1.25rem;
+  position: sticky; top: 0; z-index: 100;
+  display: flex; align-items: center; gap: 0.75rem;
+}
+.app-title { font-size: 1rem; font-weight: 700; color: var(--text); flex: 1; letter-spacing: -0.02em; }
+.save-status { font-size: 0.75rem; color: var(--muted); white-space: nowrap; }
+.hdr-logout {
+  background: none; border: none; cursor: pointer; font-family: var(--font);
+  font-size: 0.82rem; color: var(--muted); padding: 0.35rem 0.6rem;
+  border-radius: 7px; transition: background 0.12s;
+}
+.hdr-logout:hover { background: var(--border); }
+
+/* ── MAIN ── */
+main { max-width: 600px; margin: 0 auto; padding: 1.25rem 1rem 4rem; }
+
+/* ── ADD BUTTON ── */
+.add-bar {
+  margin-bottom: 1.5rem;
+}
+.add-form {
+  background: var(--surface); border-radius: var(--radius);
+  border: 1px solid var(--border); overflow: hidden;
+  display: none; animation: fadeIn 0.15s ease;
+}
+.add-form.open { display: block; }
+.add-form-inner {
+  padding: 1rem;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 0.65rem;
+}
+.add-form-inner input {
+  padding: 0.65rem 0.8rem;
+  border: 1px solid var(--border); border-radius: 9px;
+  font-size: 0.92rem; font-family: var(--font);
+  background: var(--bg); color: var(--text); outline: none; -webkit-appearance: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+.add-form-inner input:focus { border-color: var(--accent); background: white; }
+.add-form-inner input.full { grid-column: 1 / -1; }
+.add-form-actions {
+  padding: 0.6rem 1rem; border-top: 1px solid var(--border);
+  display: flex; gap: 0.5rem; justify-content: flex-end;
+  background: #FAFAFA;
+}
+.btn {
+  padding: 0.45rem 1.1rem; border-radius: 8px; font-size: 0.85rem;
+  cursor: pointer; font-family: var(--font); font-weight: 600; border: none;
+  transition: opacity 0.15s;
+}
+.btn.cancel { background: rgba(142,142,147,0.14); color: var(--muted); }
+.btn.primary { background: var(--accent); color: white; }
+.btn:hover { opacity: 0.82; }
+
+.add-trigger {
+  width: 100%; padding: 0.75rem 1rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius); cursor: pointer;
+  font-family: var(--font); font-size: 0.92rem; font-weight: 500;
+  color: var(--accent); display: flex; align-items: center; gap: 0.5rem;
+  transition: background 0.12s;
+}
+.add-trigger:hover { background: #F0F7FF; }
+.add-trigger.hidden { display: none; }
+
+/* ── DATE GROUPS ── */
+.date-group { margin-bottom: 0.25rem; }
+.date-label {
+  font-size: 0.75rem; font-weight: 600; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 0.05em;
+  padding: 1rem 0 0.4rem;
+}
+.date-label.today { color: var(--accent); }
+.date-label.past { color: #C7C7CC; }
+
+/* ── EVENT ITEMS ── */
+.event-list {
+  background: var(--surface); border-radius: var(--radius);
+  border: 1px solid var(--border); overflow: hidden;
+}
+.event-item {
+  display: flex; align-items: center; gap: 0.75rem;
+  padding: 0.85rem 1rem; border-top: 1px solid var(--border);
+  transition: background 0.1s; position: relative;
+}
+.event-item:first-child { border-top: none; }
+.event-item:hover { background: #F9F9FB; }
+.event-item.past { opacity: 0.45; }
+
+.event-dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  flex-shrink: 0; background: var(--accent);
+}
+.event-item.past .event-dot { background: #C7C7CC; }
+.event-item.today-event .event-dot { background: var(--green); }
+.event-item.soon .event-dot { background: var(--orange); }
+
+.event-time {
+  font-size: 0.8rem; font-weight: 600; color: var(--muted);
+  flex-shrink: 0; width: 42px; text-align: right; font-variant-numeric: tabular-nums;
+}
+.event-title { flex: 1; font-size: 0.95rem; color: var(--text); }
+.event-item.past .event-title { color: var(--muted); }
+
+.event-del {
+  background: none; border: none; cursor: pointer;
+  color: transparent; font-size: 13px; padding: 4px 5px;
+  border-radius: 5px; flex-shrink: 0; transition: color 0.12s;
+  font-family: var(--font); line-height: 1;
+}
+.event-item:hover .event-del { color: #C7C7CC; }
+.event-del:hover { color: var(--danger) !important; background: #FFF0EF; }
+
+/* ── TODAY BADGE ── */
+.today-banner {
+  background: var(--green); color: white;
+  font-size: 0.72rem; font-weight: 700; padding: 2px 7px;
+  border-radius: 6px; letter-spacing: 0.02em; flex-shrink: 0;
+}
+
+/* ── EMPTY ── */
+.empty-state {
+  text-align: center; padding: 3rem 1rem;
+  color: var(--muted); font-size: 0.92rem; line-height: 1.7;
+}
+.empty-state .empty-icon { font-size: 2.5rem; display: block; margin-bottom: 0.75rem; }
+
+/* ── CONFIRM ── */
+.confirm-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4); z-index: 500;
+  align-items: center; justify-content: center; padding: 1.5rem;
+  backdrop-filter: blur(4px);
+}
+.confirm-overlay.open { display: flex; }
+.confirm-box {
+  background: white; border-radius: 18px; padding: 1.5rem;
+  max-width: 300px; width: 100%; box-shadow: 0 20px 60px rgba(0,0,0,0.2);
+}
+.confirm-box p { font-size: 0.92rem; line-height: 1.5; margin-bottom: 1.1rem; }
+.confirm-row { display: flex; gap: 0.5rem; justify-content: flex-end; }
+.btn.danger { background: var(--danger); color: white; }
+
+@media (max-width: 500px) {
+  main { padding: 0.75rem 0.75rem 4rem; }
+  .add-form-inner { grid-template-columns: 1fr; }
+  .add-form-inner input.full { grid-column: 1; }
+}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="screen-login" class="login">
+  <div class="login-icon">📅</div>
+  <h1>Agenda</h1>
+  <p>Introduce tu GitHub Personal Access Token para cargar los datos.</p>
+  <div class="login-form">
+    <input class="login-input" type="password" id="inp-token" placeholder="ghp_xxxxxxxxxxxx"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <input class="login-input" type="text" id="inp-repo"
+      value="martinlla/tareas-data"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <input class="login-input" type="text" id="inp-file"
+      value="agenda.json"
+      autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false"
+      onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="login-btn" onclick="doLogin()">Entrar</button>
+    <div class="login-error" id="login-error"></div>
+  </div>
+</div>
+
+<!-- LOADING -->
+<div id="screen-loading" class="loading" style="display:none">
+  <div class="spinner"></div>
+  <span id="loading-msg">Cargando…</span>
+</div>
+
+<!-- APP -->
+<div id="screen-app" style="display:none">
+
+<header>
+  <span class="app-title">📅 Agenda</span>
+  <span class="save-status" id="save-status"></span>
+  <button class="hdr-logout" onclick="doLogout()">✕</button>
+</header>
+
+<main>
+  <div class="add-bar">
+    <button class="add-trigger" id="add-trigger" onclick="toggleAddForm()">
+      <span style="font-size:1.1rem;line-height:1">＋</span> Nueva cita
+    </button>
+    <div class="add-form" id="add-form">
+      <div class="add-form-inner">
+        <input type="text" id="new-title" placeholder="Título de la cita" class="full"
+          autocomplete="off" autocorrect="off" spellcheck="false"
+          onkeydown="if(event.key==='Enter')saveNew()">
+        <input type="date" id="new-date">
+        <input type="time" id="new-time" value="09:00">
+      </div>
+      <div class="add-form-actions">
+        <button class="btn cancel" onclick="toggleAddForm()">Cancelar</button>
+        <button class="btn primary" onclick="saveNew()">Añadir</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="event-list-container"></div>
+</main>
+
+</div><!-- /screen-app -->
+
+<!-- CONFIRM -->
+<div class="confirm-overlay" id="confirm-overlay">
+  <div class="confirm-box">
+    <p id="confirm-msg"></p>
+    <div class="confirm-row">
+      <button class="btn cancel" id="confirm-cancel">Cancelar</button>
+      <button class="btn danger" id="confirm-ok">Eliminar</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── GITHUB ─────────────────────────────────────────────────────────────────────
+let GH_TOKEN = "", GH_REPO = "", GH_FILE = "", GH_SHA = "";
+let DATA = []; // [{id, title, date, time}]
+let saveTimer = null;
+let dirty = false;
+
+// ── SCREENS ───────────────────────────────────────────────────────────────────
+function show(id) {
+  ["screen-login","screen-loading","screen-app"].forEach(s => {
+    const el = document.getElementById(s);
+    if (!el) return;
+    el.style.display = s === id ? (id === "screen-app" ? "block" : "flex") : "none";
+  });
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────────────────────
+async function doLogin() {
+  const token = document.getElementById("inp-token").value.trim();
+  const repo  = document.getElementById("inp-repo").value.trim();
+  const file  = document.getElementById("inp-file").value.trim() || "agenda.json";
+  const err   = document.getElementById("login-error");
+  err.style.display = "none";
+  if (!token) { err.textContent = "Token obligatorio."; err.style.display = "block"; return; }
+  GH_TOKEN = token; GH_REPO = repo; GH_FILE = file;
+  show("screen-loading");
+  const ok = await loadData();
+  if (!ok) { GH_TOKEN = ""; show("screen-login"); err.style.display = "block"; }
+}
+
+function doLogout() {
+  GH_TOKEN = ""; DATA = []; dirty = false;
+  document.getElementById("inp-token").value = "";
+  show("screen-login");
+}
+
+// ── GITHUB API ────────────────────────────────────────────────────────────────
+async function ghFetch(opts = {}) {
+  return fetch(`https://api.github.com/repos/${GH_REPO}/contents/${GH_FILE}`, {
+    ...opts,
+    headers: {
+      "Authorization": `Bearer ${GH_TOKEN}`,
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+      ...(opts.headers || {})
+    }
+  });
+}
+
+async function loadData() {
+  try {
+    const res = await ghFetch();
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      const err = document.getElementById("login-error");
+      if (res.status === 401) err.textContent = "Token inválido.";
+      else if (res.status === 404) err.textContent = `Archivo no encontrado: ${GH_FILE}`;
+      else err.textContent = `Error ${res.status}`;
+      return false;
+    }
+    const json = await res.json();
+    GH_SHA = json.sha;
+    const binary = atob(json.content.replace(/\n/g, ""));
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    DATA = JSON.parse(new TextDecoder("utf-8").decode(bytes));
+    show("screen-app");
+    render();
+    return true;
+  } catch(e) {
+    document.getElementById("login-error").textContent = "Error: " + e.message;
+    return false;
+  }
+}
+
+async function saveData() {
+  if (!dirty) return;
+  const status = document.getElementById("save-status");
+  status.textContent = "⏳";
+  try {
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(DATA, null, 2))));
+    const res = await ghFetch({
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "update agenda", content, sha: GH_SHA })
+    });
+    if (!res.ok) { status.textContent = "❌"; return; }
+    const body = await res.json();
+    GH_SHA = body.content.sha;
+    dirty = false;
+    status.textContent = "✓";
+    setTimeout(() => { if (status.textContent === "✓") status.textContent = ""; }, 2000);
+  } catch(e) { status.textContent = "❌"; }
+}
+
+function markDirty() {
+  dirty = true;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveData, 800);
+}
+
+// ── UTILS ─────────────────────────────────────────────────────────────────────
+function uid() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function formatDateLabel(dateStr) {
+  const today = todayStr();
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const date = new Date(y, m-1, d);
+  const todayDate = new Date();
+  todayDate.setHours(0,0,0,0);
+  const diff = Math.round((date - todayDate) / 86400000);
+
+  const weekdays = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+  const months = ["enero","febrero","marzo","abril","mayo","junio",
+                  "julio","agosto","septiembre","octubre","noviembre","diciembre"];
+
+  if (diff === 0) return { label: `Hoy, ${d} de ${months[m-1]}`, type: "today" };
+  if (diff === 1) return { label: `Mañana, ${d} de ${months[m-1]}`, type: "soon" };
+  if (diff === -1) return { label: `Ayer, ${d} de ${months[m-1]}`, type: "past" };
+  if (diff > 1 && diff <= 7) return { label: `${weekdays[date.getDay()]}, ${d} de ${months[m-1]}`, type: "soon" };
+  if (diff < 0) return { label: `${weekdays[date.getDay()]} ${d} de ${months[m-1]} ${y}`, type: "past" };
+  return { label: `${weekdays[date.getDay()]} ${d} de ${months[m-1]} ${y}`, type: "future" };
+}
+
+function isPast(dateStr, timeStr) {
+  const now = new Date();
+  const [y,m,d] = dateStr.split('-').map(Number);
+  const [h,min] = (timeStr||"23:59").split(':').map(Number);
+  return new Date(y,m-1,d,h,min) < now;
+}
+
+// ── RENDER ────────────────────────────────────────────────────────────────────
+function render() {
+  const container = document.getElementById("event-list-container");
+  const today = todayStr();
+
+  // Sort by date then time
+  const sorted = [...DATA].sort((a,b) => {
+    const da = a.date + (a.time||"00:00");
+    const db = b.date + (b.time||"00:00");
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+
+  if (!sorted.length) {
+    container.innerHTML = `<div class="empty-state">
+      <span class="empty-icon">📭</span>
+      No hay citas todavía.<br>Añade la primera con el botón de arriba.
+    </div>`;
+    return;
+  }
+
+  // Group by date
+  const groups = {};
+  for (const ev of sorted) {
+    if (!groups[ev.date]) groups[ev.date] = [];
+    groups[ev.date].push(ev);
+  }
+
+  let html = "";
+  for (const [date, events] of Object.entries(groups).sort()) {
+    const { label, type } = formatDateLabel(date);
+    html += `<div class="date-group">
+      <div class="date-label ${type}">${label}</div>
+      <div class="event-list">`;
+    for (const ev of events) {
+      const past = isPast(ev.date, ev.time);
+      const isToday = ev.date === today;
+      const cls = past ? "past" : isToday ? "today-event" : type === "soon" ? "soon" : "";
+      html += `<div class="event-item ${cls}">
+        <div class="event-dot"></div>
+        <div class="event-time">${ev.time || ""}</div>
+        <div class="event-title">${esc(ev.title)}</div>
+        ${isToday && !past ? `<span class="today-banner">HOY</span>` : ""}
+        <button class="event-del" onclick="deleteEvent('${ev.id}')" title="Eliminar">✕</button>
+      </div>`;
+    }
+    html += `</div></div>`;
+  }
+
+  container.innerHTML = html;
+}
+
+function esc(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+// ── ADD / DELETE ──────────────────────────────────────────────────────────────
+function toggleAddForm() {
+  const form = document.getElementById("add-form");
+  const trigger = document.getElementById("add-trigger");
+  const isOpen = form.classList.toggle("open");
+  trigger.classList.toggle("hidden", isOpen);
+  if (isOpen) {
+    // Default date to today
+    document.getElementById("new-date").value = todayStr();
+    setTimeout(() => document.getElementById("new-title").focus(), 50);
+  }
+}
+
+function saveNew() {
+  const title = document.getElementById("new-title").value.trim();
+  const date  = document.getElementById("new-date").value;
+  const time  = document.getElementById("new-time").value;
+  if (!title || !date) {
+    document.getElementById("new-title").focus(); return;
+  }
+  DATA.push({ id: uid(), title, date, time });
+  document.getElementById("new-title").value = "";
+  document.getElementById("new-time").value = "09:00";
+  toggleAddForm();
+  markDirty();
+  render();
+}
+
+function deleteEvent(id) {
+  const ev = DATA.find(e => e.id === id);
+  if (!ev) return;
+  showConfirm(`¿Eliminar "${ev.title}"?`, () => {
+    DATA = DATA.filter(e => e.id !== id);
+    markDirty(); render();
+  });
+}
+
+// ── CONFIRM ───────────────────────────────────────────────────────────────────
+function showConfirm(msg, onOk) {
+  document.getElementById("confirm-msg").textContent = msg;
+  document.getElementById("confirm-ok").onclick = () => { closeConfirm(); onOk(); };
+  document.getElementById("confirm-cancel").onclick = closeConfirm;
+  document.getElementById("confirm-overlay").classList.add("open");
+}
+function closeConfirm() { document.getElementById("confirm-overlay").classList.remove("open"); }
+
+window.addEventListener("beforeunload", e => { if (dirty) { e.preventDefault(); e.returnValue = ""; } });
+</script>
+</body>
+</html>
